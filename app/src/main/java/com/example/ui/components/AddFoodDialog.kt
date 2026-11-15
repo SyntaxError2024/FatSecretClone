@@ -18,11 +18,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import com.example.data.ciqual.CiqualFood
+import com.example.data.ciqual.CiqualGenericFoods
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -43,7 +46,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.ui.focus.onFocusChanged
@@ -116,7 +119,7 @@ fun AddFoodDialog(
     onDismiss: () -> Unit
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Récents", "Open Food Facts", "Création manuelle")
+    val tabs = listOf("Récents", "Aliments de base", "Open Food Facts", "Création manuelle")
     val focusManager = LocalFocusManager.current
 
     Dialog(
@@ -162,23 +165,27 @@ fun AddFoodDialog(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                // Tab Row
-                PrimaryTabRow(
+                // Scrollable Tab Row so no tab title ever clips or wraps
+                androidx.compose.material3.PrimaryScrollableTabRow(
                     selectedTabIndex = selectedTabIndex,
+                    edgePadding = 12.dp,
                     containerColor = MaterialTheme.colorScheme.surface
                 ) {
                     tabs.forEachIndexed { index, title ->
                         Tab(
                             selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            text = { Text(title) }
+                            onClick = {
+                                focusManager.clearFocus()
+                                selectedTabIndex = index
+                            },
+                            text = { Text(title, fontSize = 13.sp, maxLines = 1, softWrap = false) }
                         )
                     }
                 }
 
                 when (selectedTabIndex) {
                     0 -> {
-                        // Récents & Habituels tab
+                        // Récents & Habituels tab (in first position!)
                         RecentsTabContent(
                             recentFoods = recentFoods,
                             onSelect = onSelectLocalFood,
@@ -186,6 +193,12 @@ fun AddFoodDialog(
                         )
                     }
                     1 -> {
+                        // Aliments de base (CIQUAL) tab
+                        CiqualTabContent(
+                            onSelect = onSelectLocalFood
+                        )
+                    }
+                    2 -> {
                         // Open Food Facts tab
                         OffSearchTabContent(
                             query = searchQuery,
@@ -204,13 +217,115 @@ fun AddFoodDialog(
                             onSelectRemote = onSelectRemoteProduct
                         )
                     }
-                    2 -> {
+                    3 -> {
                         // Custom Food Creation tab
                         CustomFoodTabContent(
                             onCreate = onCreateCustomFood
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CiqualTabContent(
+    onSelect: (FoodEntity) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("Tous") }
+
+    val filteredFoods = remember(searchQuery, selectedCategory) {
+        CiqualGenericFoods.filter(searchQuery, selectedCategory)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        // Search bar for generic basic foods
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Rechercher un aliment de base (ex: Pomme, Oeuf, Riz...)") },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Effacer",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("ciqual_search_input")
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Category filter chips
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            CiqualGenericFoods.CATEGORIES.forEach { category ->
+                val isSelected = selectedCategory == category
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { selectedCategory = category },
+                    label = { Text(category, fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "${filteredFoods.size} ALIMENTS DE BASE (TABLE OFFICIELLE CIQUAL)",
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(filteredFoods, key = { it.id }) { ciqualFood ->
+                FoodCardItem(
+                    title = ciqualFood.name,
+                    subtitle = "Table CIQUAL • ${ciqualFood.category} • Portion usuelle : ${ciqualFood.defaultServingDescription}",
+                    caloriesPer100g = ciqualFood.caloriesPer100g,
+                    proteins = ciqualFood.proteinsPer100g,
+                    carbs = ciqualFood.carbsPer100g,
+                    fat = ciqualFood.fatPer100g,
+                    fiber = ciqualFood.fiberPer100g,
+                    salt = ciqualFood.saltPer100g,
+                    servingDisplay = ciqualFood.defaultServingDescription,
+                    onClick = { onSelect(ciqualFood.toFoodEntity()) }
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
@@ -391,6 +506,10 @@ private fun OffSearchTabContent(
             )
         }
 
+        val matchingCiqual = remember(query) {
+            if (query.trim().isNotBlank()) CiqualGenericFoods.filter(query).take(3) else emptyList()
+        }
+
         if (isLoading) {
             Box(
                 modifier = Modifier
@@ -412,7 +531,7 @@ private fun OffSearchTabContent(
                     )
                 }
             }
-        } else if (results.isEmpty()) {
+        } else if (results.isEmpty() && matchingCiqual.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -440,7 +559,7 @@ private fun OffSearchTabContent(
                         text = if (query.isBlank()) {
                             "Tapez le nom d'un aliment (ex: Pâtes, Riz, Yaourt) puis validez."
                         } else {
-                            "Vérifiez l'orthographe ou essayez un mot-clé plus simple."
+                            "Vérifiez l'orthographe ou consultez l'onglet \"Aliments de base\"."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -455,28 +574,56 @@ private fun OffSearchTabContent(
                     .weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                item {
-                    Text(
-                        text = "${results.size} RÉSULTAT${if (results.size > 1) "S" else ""} OPEN FOOD FACTS",
-                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                    )
+                // If generic CIQUAL foods match the search query, show them first!
+                if (matchingCiqual.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "ALIMENT${if (matchingCiqual.size > 1) "S" else ""} DE BASE CORRESPONDANT${if (matchingCiqual.size > 1) "S" else ""} (CIQUAL)",
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold),
+                            color = FatSecretGreen,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(matchingCiqual, key = { "ciqual_match_${it.id}" }) { ciqual ->
+                        FoodCardItem(
+                            title = ciqual.name,
+                            subtitle = "Table CIQUAL • ${ciqual.category} • Portion: ${ciqual.defaultServingDescription}",
+                            caloriesPer100g = ciqual.caloriesPer100g,
+                            proteins = ciqual.proteinsPer100g,
+                            carbs = ciqual.carbsPer100g,
+                            fat = ciqual.fatPer100g,
+                            fiber = ciqual.fiberPer100g,
+                            salt = ciqual.saltPer100g,
+                            servingDisplay = ciqual.defaultServingDescription,
+                            onClick = { onSelectLocal(ciqual.toFoodEntity()) }
+                        )
+                    }
                 }
-                itemsIndexed(results, key = { index, product -> "off_${product.code ?: "item"}_$index" }) { _, product ->
-                    val kcal = product.getCaloriesPer100g() ?: 0.0
-                    FoodCardItem(
-                        title = product.getDisplayName(),
-                        subtitle = product.getCleanBrand(),
-                        caloriesPer100g = kcal,
-                        proteins = product.getProteinsPer100g(),
-                        carbs = product.getCarbsPer100g(),
-                        fat = product.getFatPer100g(),
-                        fiber = product.getFiberPer100g(),
-                        salt = product.getSaltPer100g(),
-                        servingDisplay = product.getCleanServingDisplay(),
-                        onClick = { onSelectRemote(product) }
-                    )
+
+                if (results.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "${results.size} RÉSULTAT${if (results.size > 1) "S" else ""} OPEN FOOD FACTS",
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                        )
+                    }
+                    itemsIndexed(results, key = { index, product -> "off_${product.code ?: "item"}_$index" }) { _, product ->
+                        val kcal = product.getCaloriesPer100g() ?: 0.0
+                        FoodCardItem(
+                            title = product.getDisplayName(),
+                            subtitle = product.getCleanBrand(),
+                            caloriesPer100g = kcal,
+                            proteins = product.getProteinsPer100g(),
+                            carbs = product.getCarbsPer100g(),
+                            fat = product.getFatPer100g(),
+                            fiber = product.getFiberPer100g(),
+                            salt = product.getSaltPer100g(),
+                            servingDisplay = product.getCleanServingDisplay(),
+                            onClick = { onSelectRemote(product) }
+                        )
+                    }
                 }
                 item {
                     Spacer(modifier = Modifier.height(20.dp))
@@ -588,32 +735,10 @@ private fun CustomFoodTabContent(
         Spacer(modifier = Modifier.height(10.dp))
 
         // Unit selector
-        Text(
-            text = "Unité de mesure :",
-            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        UnitSelectorRow(
+            selectedUnit = selectedUnit,
+            onSelectUnit = { selectedUnit = it }
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = selectedUnit == "g",
-                onClick = { selectedUnit = "g" },
-                label = { Text("Au gramme (g)") }
-            )
-            FilterChip(
-                selected = selectedUnit == "ml",
-                onClick = { selectedUnit = "ml" },
-                label = { Text("Au millilitre (ml)") }
-            )
-            FilterChip(
-                selected = selectedUnit == "unité",
-                onClick = { selectedUnit = "unité" },
-                label = { Text("À l'unité") }
-            )
-        }
 
         Spacer(modifier = Modifier.height(10.dp))
 

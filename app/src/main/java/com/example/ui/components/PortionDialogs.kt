@@ -13,15 +13,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,16 +42,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.data.local.MealEntryEntity
 import com.example.ui.theme.AccentBlue
 import com.example.ui.theme.CalorieOrange
@@ -56,6 +63,138 @@ import com.example.ui.theme.CalorieRed
 import com.example.ui.theme.FatSecretGreen
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+
+@Composable
+fun UnitSelectorRow(
+    selectedUnit: String,
+    onSelectUnit: (String) -> Unit
+) {
+    Column {
+        Text(
+            text = "Unité de mesure :",
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            val units = listOf(
+                Triple("g", "g", "Grammes"),
+                Triple("ml", "ml", "Millilitres"),
+                Triple("unité", "Unité", "À la pièce")
+            )
+            units.forEach { (unitKey, symbol, label) ->
+                val isSelected = selectedUnit == unitKey
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .background(
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                        .clickable { onSelectUnit(unitKey) }
+                        .padding(vertical = 6.dp, horizontal = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = symbol,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            ),
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun PieceWeightSelector(
+    pieceWeightGrams: Double,
+    effectiveGrams: Double,
+    onSelectWeight: (Double) -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "1 unité = ${pieceWeightGrams.roundToInt()}g",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Text(
+                    text = "Total : ${effectiveGrams.roundToInt()}g",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = FatSecretGreen,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf(30, 50, 60, 100, 120, 150, 200).forEach { weight ->
+                    val isSelected = pieceWeightGrams.roundToInt() == weight
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                        modifier = Modifier.clickable { onSelectWeight(weight.toDouble()) }
+                    ) {
+                        Text(
+                            text = "${weight}g",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            ),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -115,18 +254,28 @@ fun PortionQuantityDialog(
         )
     }
 
-    val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(selectedUnit) {
-        delay(120)
-        try {
-            focusRequester.requestFocus()
-        } catch (_: Exception) {}
+    val scrollState = rememberScrollState()
+    val focusManager = LocalFocusManager.current
+    var isQtyFieldFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        focusManager.clearFocus()
+        scrollState.scrollTo(0)
+    }
+
+    LaunchedEffect(isQtyFieldFocused) {
+        if (isQtyFieldFocused) {
+            delay(40)
+            quantityField = quantityField.copy(
+                selection = TextRange(0, quantityField.text.length)
+            )
+        }
     }
 
     val parsedQty = quantityField.text.toDoubleOrNull() ?: 0.0
     val effectiveGrams = when (selectedUnit) {
         "unité" -> parsedQty * pieceWeightGrams
-        "ml" -> parsedQty // 1ml = 1g
+        "ml" -> parsedQty
         else -> parsedQty
     }
 
@@ -137,330 +286,308 @@ fun PortionQuantityDialog(
     val calculatedFiber = (fiberPer100g * effectiveGrams / 100.0)
     val calculatedSalt = (saltPer100g * effectiveGrams / 100.0)
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Column {
-                Text(
-                    text = foodName,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (foodBrand.isNotBlank()) {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                // FIXED HEADER: Title, brand, base calories (never cut off!)
+                Column {
                     Text(
-                        text = foodBrand,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = foodName,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
-                }
-            }
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                val baseLabel = if (selectedUnit == "ml") "100ml" else "100g"
-                Text(
-                    text = "${caloriesPer100g.roundToInt()} kcal pour $baseLabel",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = FatSecretGreen
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Unit selection chips: g, ml, unité
-                Text(
-                    text = "Unité de mesure :",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedUnit == "g",
-                        onClick = { selectedUnit = "g" },
-                        label = { Text("Au gramme (g)") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                    FilterChip(
-                        selected = selectedUnit == "ml",
-                        onClick = { selectedUnit = "ml" },
-                        label = { Text("Au millilitre (ml)") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                    FilterChip(
-                        selected = selectedUnit == "unité",
-                        onClick = { selectedUnit = "unité" },
-                        label = { Text("À l'unité") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Quantity Input: Pre-selects whole text on focus / launch so typing immediately replaces it
-                OutlinedTextField(
-                    value = quantityField,
-                    onValueChange = { newValue ->
-                        val cleaned = newValue.text.replace(',', '.')
-                        if (cleaned.all { it.isDigit() || it == '.' }) {
-                            quantityField = newValue.copy(text = cleaned)
-                        }
-                    },
-                    label = {
+                    if (foodBrand.isNotBlank()) {
                         Text(
-                            when (selectedUnit) {
-                                "unité" -> "Nombre d'unités (ex: 1, 2, 0.5)"
-                                "ml" -> "Volume en millilitres (ml)"
-                                else -> "Quantité en grammes (g)"
-                            }
+                            text = foodBrand,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    },
-                    trailingIcon = {
-                        if (quantityField.text.isNotEmpty()) {
-                            IconButton(
-                                onClick = {
-                                    quantityField = TextFieldValue(text = "", selection = TextRange.Zero)
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Effacer la quantité",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
+                    }
+                    val baseLabel = if (selectedUnit == "ml") "100ml" else "100g"
+                    Text(
+                        text = "${caloriesPer100g.roundToInt()} kcal pour $baseLabel",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = FatSecretGreen,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // SCROLLABLE BODY (Scrolls only if screen is constrained or keyboard is open)
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                quantityField = quantityField.copy(
-                                    selection = TextRange(0, quantityField.text.length)
-                                )
-                            }
+                        .weight(1f, fill = false)
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Unit Selector
+                    UnitSelectorRow(
+                        selectedUnit = selectedUnit,
+                        onSelectUnit = {
+                            focusManager.clearFocus()
+                            selectedUnit = it
                         }
-                        .testTag("portion_input")
-                )
+                    )
 
-                // If "À l'unité", show and allow adjusting piece weight
-                if (selectedUnit == "unité") {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ) {
-                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Poids d'1 unité : ${pieceWeightGrams.roundToInt()}g",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Total : ${effectiveGrams.roundToInt()}g",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = FatSecretGreen
-                                )
+                    // Quantity Input
+                    OutlinedTextField(
+                        value = quantityField,
+                        onValueChange = { newValue ->
+                            val cleaned = newValue.text.replace(',', '.')
+                            if (cleaned.all { it.isDigit() || it == '.' }) {
+                                quantityField = newValue.copy(text = cleaned)
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            // Quick piece weight presets
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf(30, 50, 60, 100, 125, 150).forEach { weight ->
-                                    val isSelected = pieceWeightGrams.roundToInt() == weight
-                                    Text(
-                                        text = "${weight}g",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        ),
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier
-                                            .background(
-                                                if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                                                RoundedCornerShape(6.dp)
-                                            )
-                                            .clickable { pieceWeightGrams = weight.toDouble() }
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                        },
+                        label = {
+                            Text(
+                                when (selectedUnit) {
+                                    "unité" -> "Nombre d'unités (ex: 1, 2, 0.5)"
+                                    "ml" -> "Volume en millilitres (ml)"
+                                    else -> "Quantité en grammes (g)"
+                                },
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        },
+                        trailingIcon = {
+                            if (quantityField.text.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        quantityField = TextFieldValue(text = "", selection = TextRange.Zero)
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Effacer la quantité",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Quick chips adapted to unit
-                Text(
-                    text = when (selectedUnit) {
-                        "unité" -> "Portions rapides (unités) :"
-                        "ml" -> "Volumes rapides :"
-                        else -> "Portions rapides :"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                val quickValues = when (selectedUnit) {
-                    "unité" -> listOf("0.5", "1", "1.5", "2", "3", "4", "5")
-                    "ml" -> listOf("50", "100", "150", "200", "250", "330", "500")
-                    else -> {
-                        val baseGrams = listOf("30", "50", "100", "150", "200", "250")
-                        val lastInt = initialQuantityGrams.roundToInt().toString()
-                        if (initialQuantityGrams > 0 && lastInt !in baseGrams) {
-                            (baseGrams + lastInt).sortedBy { it.toIntOrNull() ?: 0 }
-                        } else baseGrams
-                    }
-                }
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    quickValues.forEach { chipText ->
-                        val isSelected = quantityField.text == chipText
-                        val chipLabel = when (selectedUnit) {
-                            "unité" -> "$chipText unité${if (chipText != "1" && chipText != "0.5") "s" else ""}"
-                            "ml" -> "${chipText}ml"
-                            else -> "${chipText}g"
-                        }
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                quantityField = TextFieldValue(
-                                    text = chipText,
-                                    selection = TextRange(0, chipText.length)
-                                )
-                            },
-                            label = { Text(chipLabel, fontSize = 12.sp) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Calorie Total
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Énergie calculée :",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "$calculatedKcal kcal",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                // Macros breakdown
-                val hasMacros = proteinsPer100g > 0 || carbsPer100g > 0 || fatPer100g > 0 || fiberPer100g > 0 || saltPer100g > 0
-                if (hasMacros) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Box(
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                RoundedCornerShape(8.dp)
-                            )
-                            .padding(horizontal = 10.dp, vertical = 8.dp)
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "P: ${"%.1f".format(calculatedP)}g",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                    color = AccentBlue
-                                )
-                                Text(
-                                    text = "G: ${"%.1f".format(calculatedC)}g",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                    color = CalorieOrange
-                                )
-                                Text(
-                                    text = "L: ${"%.1f".format(calculatedF)}g",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                                    color = CalorieRed
+                            .onFocusChanged { focusState ->
+                                isQtyFieldFocused = focusState.isFocused
+                                if (focusState.isFocused) {
+                                    quantityField = quantityField.copy(
+                                        selection = TextRange(0, quantityField.text.length)
+                                    )
+                                }
+                            }
+                            .testTag("portion_input")
+                    )
+
+                    // If "À l'unité", show piece weight selector with non-wrapping flow chips
+                    if (selectedUnit == "unité") {
+                        PieceWeightSelector(
+                            pieceWeightGrams = pieceWeightGrams,
+                            effectiveGrams = effectiveGrams,
+                            onSelectWeight = {
+                                focusManager.clearFocus()
+                                pieceWeightGrams = it
+                            }
+                        )
+                    }
+
+                    // Quick portions chips
+                    Column {
+                        Text(
+                            text = when (selectedUnit) {
+                                "unité" -> "Portions rapides (unités) :"
+                                "ml" -> "Volumes rapides :"
+                                else -> "Portions rapides :"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val quickValues = when (selectedUnit) {
+                            "unité" -> listOf("0.5", "1", "1.5", "2", "3", "4", "5")
+                            "ml" -> listOf("50", "100", "150", "200", "250", "330", "500")
+                            else -> {
+                                val baseGrams = listOf("30", "50", "100", "150", "200", "250")
+                                val lastInt = initialQuantityGrams.roundToInt().toString()
+                                if (initialQuantityGrams > 0 && lastInt !in baseGrams) {
+                                    (baseGrams + lastInt).sortedBy { it.toIntOrNull() ?: 0 }
+                                } else baseGrams
+                            }
+                        }
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            quickValues.forEach { chipText ->
+                                val isSelected = quantityField.text == chipText
+                                val chipLabel = when (selectedUnit) {
+                                    "unité" -> "$chipText unité${if (chipText != "1" && chipText != "0.5") "s" else ""}"
+                                    "ml" -> "${chipText}ml"
+                                    else -> "${chipText}g"
+                                }
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        quantityField = TextFieldValue(
+                                            text = chipText,
+                                            selection = TextRange(0, chipText.length)
+                                        )
+                                    },
+                                    label = { Text(chipLabel, fontSize = 12.sp, maxLines = 1, softWrap = false) }
                                 )
                             }
-                            if (fiberPer100g > 0 || saltPer100g > 0) {
-                                Spacer(modifier = Modifier.height(4.dp))
+                        }
+                    }
+
+                    // Calorie Total
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Énergie calculée :",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Text(
+                            text = "$calculatedKcal kcal",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+
+                    // Macros breakdown
+                    val hasMacros = proteinsPer100g > 0 || carbsPer100g > 0 || fatPer100g > 0 || fiberPer100g > 0 || saltPer100g > 0
+                    if (hasMacros) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 8.dp)
+                        ) {
+                            Column {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    if (fiberPer100g > 0) {
-                                        Text(
-                                            text = "Fibres: ${"%.1f".format(calculatedFiber)}g",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    if (saltPer100g > 0) {
-                                        Text(
-                                            text = "Sel: ${"%.2f".format(calculatedSalt)}g",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                    Text(
+                                        text = "P: ${"%.1f".format(calculatedP)}g",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                        color = AccentBlue,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Text(
+                                        text = "G: ${"%.1f".format(calculatedC)}g",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                        color = CalorieOrange,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                    Text(
+                                        text = "L: ${"%.1f".format(calculatedF)}g",
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                        color = CalorieRed,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                                if (fiberPer100g > 0 || saltPer100g > 0) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        if (fiberPer100g > 0) {
+                                            Text(
+                                                text = "Fibres: ${"%.1f".format(calculatedFiber)}g",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                        if (saltPer100g > 0) {
+                                            Text(
+                                                text = "Sel: ${"%.2f".format(calculatedSalt)}g",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (parsedQty > 0 && effectiveGrams > 0) {
-                        onConfirm(effectiveGrams, selectedUnit, parsedQty)
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // FIXED FOOTER BUTTONS
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Annuler")
                     }
-                },
-                enabled = parsedQty > 0 && effectiveGrams > 0,
-                modifier = Modifier.testTag("confirm_portion_button")
-            ) {
-                Text("Ajouter")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (parsedQty > 0 && effectiveGrams > 0) {
+                                onConfirm(effectiveGrams, selectedUnit, parsedQty)
+                            }
+                        },
+                        enabled = parsedQty > 0 && effectiveGrams > 0,
+                        modifier = Modifier.testTag("confirm_portion_button")
+                    ) {
+                        Text("Ajouter")
+                    }
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Annuler")
-            }
-        },
-        shape = RoundedCornerShape(16.dp)
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -506,17 +633,27 @@ fun EditQuantityDialog(
         mutableStateOf(
             TextFieldValue(
                 text = initialQtyString,
-                selection = TextRange(0, initialQtyString.length) // Auto-select old quantity
+                selection = TextRange(0, initialQtyString.length)
             )
         )
     }
 
-    val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(selectedUnit) {
-        delay(120)
-        try {
-            focusRequester.requestFocus()
-        } catch (_: Exception) {}
+    val scrollState = rememberScrollState()
+    val focusManager = LocalFocusManager.current
+    var isQtyFieldFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        focusManager.clearFocus()
+        scrollState.scrollTo(0)
+    }
+
+    LaunchedEffect(isQtyFieldFocused) {
+        if (isQtyFieldFocused) {
+            delay(40)
+            quantityField = quantityField.copy(
+                selection = TextRange(0, quantityField.text.length)
+            )
+        }
     }
 
     val parsedQty = quantityField.text.toDoubleOrNull() ?: 0.0
@@ -529,257 +666,256 @@ fun EditQuantityDialog(
     val calculatedKcal = (entry.caloriesPer100g * effectiveGrams / 100.0).roundToInt()
     val ratio = if (entry.quantityGrams > 0) effectiveGrams / entry.quantityGrams else 1.0
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Modifier la portion",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-            )
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = entry.foodName,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (entry.foodBrand.isNotBlank()) {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .wrapContentHeight(),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                // FIXED HEADER
+                Column {
                     Text(
-                        text = entry.foodBrand,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Modifier la portion",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        softWrap = false
                     )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Unit selection chips: g, ml, unité
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    FilterChip(
-                        selected = selectedUnit == "g",
-                        onClick = { selectedUnit = "g" },
-                        label = { Text("Au gramme (g)") }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = entry.foodName,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    FilterChip(
-                        selected = selectedUnit == "ml",
-                        onClick = { selectedUnit = "ml" },
-                        label = { Text("Au millilitre (ml)") }
-                    )
-                    FilterChip(
-                        selected = selectedUnit == "unité",
-                        onClick = { selectedUnit = "unité" },
-                        label = { Text("À l'unité") }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = quantityField,
-                    onValueChange = { newValue ->
-                        val cleaned = newValue.text.replace(',', '.')
-                        if (cleaned.all { it.isDigit() || it == '.' }) {
-                            quantityField = newValue.copy(text = cleaned)
-                        }
-                    },
-                    label = {
+                    if (entry.foodBrand.isNotBlank()) {
                         Text(
-                            when (selectedUnit) {
-                                "unité" -> "Nombre d'unités (ex: 1, 2, 0.5)"
-                                "ml" -> "Volume en millilitres (ml)"
-                                else -> "Quantité en grammes (g)"
-                            }
+                            text = entry.foodBrand,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    },
-                    trailingIcon = {
-                        if (quantityField.text.isNotEmpty()) {
-                            IconButton(
-                                onClick = {
-                                    quantityField = TextFieldValue(text = "", selection = TextRange.Zero)
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Effacer la quantité",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // SCROLLABLE BODY
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { focusState ->
-                            if (focusState.isFocused) {
-                                quantityField = quantityField.copy(
-                                    selection = TextRange(0, quantityField.text.length)
-                                )
-                            }
+                        .weight(1f, fill = false)
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Unit Selector
+                    UnitSelectorRow(
+                        selectedUnit = selectedUnit,
+                        onSelectUnit = {
+                            focusManager.clearFocus()
+                            selectedUnit = it
                         }
-                )
+                    )
 
-                if (selectedUnit == "unité") {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ) {
-                        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "1 unité = ${pieceWeightGrams.roundToInt()}g",
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Total : ${effectiveGrams.roundToInt()}g",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                    color = FatSecretGreen
-                                )
+                    // Quantity Input
+                    OutlinedTextField(
+                        value = quantityField,
+                        onValueChange = { newValue ->
+                            val cleaned = newValue.text.replace(',', '.')
+                            if (cleaned.all { it.isDigit() || it == '.' }) {
+                                quantityField = newValue.copy(text = cleaned)
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf(30, 50, 60, 100, 125, 150).forEach { weight ->
-                                    val isSelected = pieceWeightGrams.roundToInt() == weight
-                                    Text(
-                                        text = "${weight}g",
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        ),
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier
-                                            .background(
-                                                if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                                                RoundedCornerShape(6.dp)
-                                            )
-                                            .clickable { pieceWeightGrams = weight.toDouble() }
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                        },
+                        label = {
+                            Text(
+                                when (selectedUnit) {
+                                    "unité" -> "Nombre d'unités (ex: 1, 2, 0.5)"
+                                    "ml" -> "Volume en millilitres (ml)"
+                                    else -> "Quantité en grammes (g)"
+                                },
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        },
+                        trailingIcon = {
+                            if (quantityField.text.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        quantityField = TextFieldValue(text = "", selection = TextRange.Zero)
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Effacer la quantité",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
                             }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { focusState ->
+                                isQtyFieldFocused = focusState.isFocused
+                                if (focusState.isFocused) {
+                                    quantityField = quantityField.copy(
+                                        selection = TextRange(0, quantityField.text.length)
+                                    )
+                                }
+                            }
+                    )
+
+                    // If "À l'unité", show piece weight selector with non-wrapping flow chips
+                    if (selectedUnit == "unité") {
+                        PieceWeightSelector(
+                            pieceWeightGrams = pieceWeightGrams,
+                            effectiveGrams = effectiveGrams,
+                            onSelectWeight = {
+                                focusManager.clearFocus()
+                                pieceWeightGrams = it
+                            }
+                        )
+                    }
+
+                    // Quick portions chips
+                    Column {
+                        val quickValues = when (selectedUnit) {
+                            "unité" -> listOf("0.5", "1", "1.5", "2", "3", "4", "5")
+                            "ml" -> listOf("50", "100", "150", "200", "250", "330", "500")
+                            else -> listOf("30", "50", "100", "150", "200", "250")
+                        }
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            quickValues.forEach { chipText ->
+                                val isSelected = quantityField.text == chipText
+                                val chipLabel = when (selectedUnit) {
+                                    "unité" -> "$chipText unité${if (chipText != "1" && chipText != "0.5") "s" else ""}"
+                                    "ml" -> "${chipText}ml"
+                                    else -> "${chipText}g"
+                                }
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        focusManager.clearFocus()
+                                        quantityField = TextFieldValue(
+                                            text = chipText,
+                                            selection = TextRange(0, chipText.length)
+                                        )
+                                    },
+                                    label = { Text(chipLabel, fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                                )
+                            }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                val quickValues = when (selectedUnit) {
-                    "unité" -> listOf("0.5", "1", "1.5", "2", "3", "4", "5")
-                    "ml" -> listOf("50", "100", "150", "200", "250", "330", "500")
-                    else -> listOf("30", "50", "100", "150", "200", "250")
-                }
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    quickValues.forEach { chipText ->
-                        val isSelected = quantityField.text == chipText
-                        val chipLabel = when (selectedUnit) {
-                            "unité" -> "$chipText unité${if (chipText != "1" && chipText != "0.5") "s" else ""}"
-                            "ml" -> "${chipText}ml"
-                            else -> "${chipText}g"
-                        }
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                quantityField = TextFieldValue(
-                                    text = chipText,
-                                    selection = TextRange(0, chipText.length)
-                                )
-                            },
-                            label = { Text(chipLabel, fontSize = 11.sp) }
+                    // Calorie total
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Total :",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            softWrap = false
                         )
+                        Text(
+                            text = "$calculatedKcal kcal",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+
+                    // Macros
+                    if (entry.proteins > 0 || entry.carbs > 0 || entry.fat > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "P: ${"%.1f".format(entry.proteins * ratio)}g",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = AccentBlue,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Text(
+                                text = "G: ${"%.1f".format(entry.carbs * ratio)}g",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = CalorieOrange,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                            Text(
+                                text = "L: ${"%.1f".format(entry.fat * ratio)}g",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = CalorieRed,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    // Delete button
+                    OutlinedButton(
+                        onClick = onDelete,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CalorieRed),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Supprimer cet aliment")
                     }
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // FIXED FOOTER BUTTONS
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Total :",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "$calculatedKcal kcal",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-
-                if (entry.proteins > 0 || entry.carbs > 0 || entry.fat > 0) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    TextButton(onClick = onDismiss) {
+                        Text("Fermer")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (parsedQty > 0 && effectiveGrams > 0) {
+                                onSave(effectiveGrams, selectedUnit, parsedQty)
+                            }
+                        },
+                        enabled = parsedQty > 0 && effectiveGrams > 0
                     ) {
-                        Text(
-                            text = "P: ${"%.1f".format(entry.proteins * ratio)}g",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                            color = AccentBlue
-                        )
-                        Text(
-                            text = "G: ${"%.1f".format(entry.carbs * ratio)}g",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                            color = CalorieOrange
-                        )
-                        Text(
-                            text = "L: ${"%.1f".format(entry.fat * ratio)}g",
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
-                            color = CalorieRed
-                        )
+                        Text("Enregistrer")
                     }
                 }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                OutlinedButton(
-                    onClick = onDelete,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CalorieRed),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Supprimer cet aliment")
-                }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (parsedQty > 0 && effectiveGrams > 0) {
-                        onSave(effectiveGrams, selectedUnit, parsedQty)
-                    }
-                },
-                enabled = parsedQty > 0 && effectiveGrams > 0
-            ) {
-                Text("Enregistrer")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Fermer")
-            }
-        },
-        shape = RoundedCornerShape(16.dp)
-    )
+        }
+    }
 }

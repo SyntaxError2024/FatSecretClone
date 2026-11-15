@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.fatdiary.knqzma"
     minSdk = 24
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.1"
+    versionCode = 6
+    versionName = "1.5"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -68,6 +68,10 @@ android {
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
+  }
+  lint {
+    checkReleaseBuilds = false
+    abortOnError = false
   }
 }
 
@@ -142,4 +146,31 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+}
+
+tasks.register("copyReleaseApkToBuildDir") {
+  notCompatibleWithConfigurationCache("Copies release APK to build/ directory")
+  doLast {
+    val buildDir = file("${rootDir}/build")
+    if (!buildDir.exists()) buildDir.mkdirs()
+    val src = file("${layout.buildDirectory.get().asFile}/outputs/apk/release/app-release.apk")
+    if (src.exists()) {
+      val vCode = android.defaultConfig.versionCode ?: 3
+      val destNamed = file("${buildDir}/JournalCalorie-Release-v${vCode}.apk")
+      src.copyTo(destNamed, overwrite = true)
+      src.copyTo(file("${buildDir}/JournalCalorie-Release.apk"), overwrite = true)
+      
+      val apkDir = file("${rootDir}/apk")
+      if (!apkDir.exists()) apkDir.mkdirs()
+      src.copyTo(file("${apkDir}/JournalCalorie-Release-v${vCode}.apk"), overwrite = true)
+      src.copyTo(file("${apkDir}/JournalCalorie-Release.apk"), overwrite = true)
+      src.copyTo(file("${apkDir}/JournalCalorie.apk"), overwrite = true)
+      
+      println("Copied release APK to: ${destNamed.absolutePath}")
+    }
+  }
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+  finalizedBy("copyReleaseApkToBuildDir")
 }

@@ -9,6 +9,8 @@ import com.example.data.model.DatabaseStats
 import com.example.data.model.ImportResult
 import com.example.data.model.MealType
 import com.example.data.remote.OffProductDto
+import com.example.data.ciqual.CiqualFood
+import com.example.data.ciqual.CiqualGenericFoods
 import com.example.data.repository.DiaryRepository
 import com.example.util.DateUtils
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -150,6 +152,19 @@ class DiaryViewModel(
 
     private val _savedToHistoryCodes = MutableStateFlow<Set<String>>(emptySet())
     val savedToHistoryCodes: StateFlow<Set<String>> = _savedToHistoryCodes.asStateFlow()
+
+    // CIQUAL Generic foods (Aliments de base)
+    val ciqualCategory = MutableStateFlow("Tous")
+    val ciqualSearchResults: StateFlow<List<CiqualFood>> = combine(
+        searchQuery,
+        ciqualCategory
+    ) { q, cat ->
+        CiqualGenericFoods.filter(q, cat)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CiqualGenericFoods.ALL_FOODS)
+
+    fun setCiqualCategory(cat: String) {
+        ciqualCategory.value = cat
+    }
 
     // Combined local search
     val localSearchResults: StateFlow<List<FoodEntity>> = searchQuery
@@ -422,6 +437,10 @@ class DiaryViewModel(
         }
     }
 
+    fun openPortionDialogForCiqual(food: CiqualFood, mealType: MealType) {
+        openPortionDialogForLocal(food.toFoodEntity(), mealType)
+    }
+
     fun openPortionDialogForRemote(product: OffProductDto, mealType: MealType) {
         viewModelScope.launch {
             val name = product.getDisplayName()
@@ -489,6 +508,12 @@ class DiaryViewModel(
             product.code?.let { code ->
                 _savedToHistoryCodes.value = _savedToHistoryCodes.value + code
             }
+        }
+    }
+
+    fun saveFoodToHistory(food: FoodEntity) {
+        viewModelScope.launch {
+            repository.saveFoodToHistory(food)
         }
     }
 

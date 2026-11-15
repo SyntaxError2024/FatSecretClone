@@ -524,6 +524,21 @@ class DiaryRepository(
         }
     }
 
+    suspend fun saveFoodToHistory(food: FoodEntity): Long = withContext(Dispatchers.IO) {
+        val existing = foodDao.findByNameAndBrand(food.name.trim(), food.brand.trim())
+        if (existing != null) {
+            foodDao.recordFoodUsage(existing.id, food.defaultServingGrams)
+            existing.id
+        } else {
+            val toInsert = food.copy(
+                id = 0,
+                lastUsedTimestamp = System.currentTimeMillis(),
+                usageCount = 1
+            )
+            foodDao.insertFood(toInsert)
+        }
+    }
+
     // Weight tracking flows & operations
     fun getAllWeightEntriesDesc(): Flow<List<WeightEntryEntity>> {
         return weightEntryDao?.getAllEntriesDesc() ?: kotlinx.coroutines.flow.flowOf(emptyList())

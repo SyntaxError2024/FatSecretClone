@@ -43,6 +43,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilterChip
+import com.example.data.ciqual.CiqualFood
+import com.example.data.ciqual.CiqualGenericFoods
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +57,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -111,8 +118,24 @@ fun FoodSearchScreen(
 
     var productForMealSelect by remember { mutableStateOf<OffProductDto?>(null) }
     var localFoodForMealSelect by remember { mutableStateOf<FoodEntity?>(null) }
+    var ciqualFoodForMealSelect by remember { mutableStateOf<CiqualFood?>(null) }
 
-    val quickSuggestions = listOf("Pâtes", "Riz", "Poulet", "Yaourt", "Pain", "Avoine", "Pomme", "Oeuf", "Chocolat")
+    var idleTab by remember { mutableStateOf(0) } // 0: CIQUAL, 1: Historique
+    var selectedCiqualCat by remember { mutableStateOf("Tous") }
+
+    val quickSuggestions = listOf("Pomme", "Banane", "Oeuf", "Poulet", "Riz", "Pâtes", "Avoine", "Yaourt", "Chocolat")
+
+    val matchingCiqual = remember(searchQuery) {
+        if (searchQuery.isNotBlank()) {
+            CiqualGenericFoods.search(searchQuery)
+        } else {
+            emptyList()
+        }
+    }
+
+    val idleCiqualFoods = remember(selectedCiqualCat) {
+        CiqualGenericFoods.filter("", selectedCiqualCat)
+    }
 
     Scaffold(
         topBar = {
@@ -120,7 +143,7 @@ fun FoodSearchScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Recherche Open Food Facts",
+                            text = "Recherche d'aliments",
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         )
                         val countryLabel = when (offCountry.lowercase()) {
@@ -133,9 +156,9 @@ fun FoodSearchScreen(
                             "uk" -> "🇬🇧 Royaume-Uni"
                             else -> "🌍 International"
                         }
-                        val storeInfo = if (offStore.isNotBlank()) " • Enseigne: $offStore" else ""
+                        val storeInfo = if (offStore.isNotBlank()) " • $offStore" else ""
                         Text(
-                            text = "Base : $countryLabel$storeInfo",
+                            text = "CIQUAL (Base officielle) & OFF ($countryLabel$storeInfo)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -166,7 +189,7 @@ fun FoodSearchScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.searchQuery.value = it },
-                    placeholder = { Text("Rechercher un aliment...") },
+                    placeholder = { Text("Pomme, oeuf, banane, marque...") },
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
                     trailingIcon = {
@@ -253,155 +276,153 @@ fun FoodSearchScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Main Content Area
-            if (isSearching) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = FatSecretGreen)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Recherche en cours sur Open Food Facts...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else if (searchError != null && searchResults.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = searchError ?: "Aucun résultat",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            } else if (searchResults.isNotEmpty()) {
-                // Remote results list
+            if (searchQuery.isNotBlank()) {
+                // Search Mode: Display CIQUAL Matches first, then Open Food Facts Results
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    item {
-                        Text(
-                            text = "${searchResults.size} RÉSULTATS OPEN FOOD FACTS",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                letterSpacing = 1.sp,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                    }
-
-                    itemsIndexed(
-                        items = searchResults,
-                        key = { index, product -> "search_off_${product.code ?: "item"}_$index" }
-                    ) { _, product ->
-                        val isSaved = product.code != null && (savedCodes.contains(product.code) || recentFoods.any { it.barcode == product.code })
-                        ProductDetailCard(
-                            product = product,
-                            isSavedToHistory = isSaved,
-                            onSaveToHistory = {
-                                viewModel.saveProductToHistory(product)
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("Aliment \"${product.getDisplayName()}\" ajouté à l'historique !")
+                    // Section 1: CIQUAL Matches (if any)
+                    if (matchingCiqual.isNotEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = FatSecretGreen.copy(alpha = 0.12f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "ALIMENTS DE BASE CIQUAL (${matchingCiqual.size})",
+                                            style = MaterialTheme.typography.labelMedium.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 0.5.sp
+                                            ),
+                                            color = FatSecretGreen
+                                        )
+                                        Text(
+                                            text = "Produits bruts officiels ANSES (sans additifs industriels)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
-                            },
-                            onAddToMeal = {
-                                productForMealSelect = product
                             }
-                        )
+                        }
+
+                        items(matchingCiqual, key = { "ciqual_match_${it.id}" }) { ciqual ->
+                            val isSaved = savedCodes.contains(ciqual.id) || recentFoods.any { it.name.equals(ciqual.name, ignoreCase = true) }
+                            CiqualProductCard(
+                                food = ciqual,
+                                isSaved = isSaved,
+                                onSaveToHistory = {
+                                    viewModel.saveFoodToHistory(ciqual.toFoodEntity())
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Aliment de base \"${ciqual.name}\" mémorisé !")
+                                    }
+                                },
+                                onAddToMeal = {
+                                    ciqualFoodForMealSelect = ciqual
+                                }
+                            )
+                        }
                     }
 
-                    item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                    }
-                }
-            } else {
-                // When idle / no search query: display Saved & Recent Foods
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+                    // Section 2: Open Food Facts Results
                     item {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 6.dp),
+                                .padding(top = 10.dp, bottom = 4.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "ALIMENTS EN MÉMOIRE & HISTORIQUE (${recentFoods.size})",
+                                text = "PRODUITS DU COMMERCE (OPEN FOOD FACTS)",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     letterSpacing = 1.sp,
                                     fontWeight = FontWeight.Bold
                                 ),
                                 color = MaterialTheme.colorScheme.primary
                             )
+                            if (searchResults.isNotEmpty()) {
+                                Text(
+                                    text = "${searchResults.size} trouvés",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
 
-                    if (recentFoods.isEmpty()) {
+                    if (isSearching) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    CircularProgressIndicator(color = FatSecretGreen, modifier = Modifier.size(28.dp))
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = "Recherche en ligne Open Food Facts...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    } else if (searchResults.isNotEmpty()) {
+                        itemsIndexed(
+                            items = searchResults,
+                            key = { index, product -> "search_off_${product.code ?: "item"}_$index" }
+                        ) { _, product ->
+                            val isSaved = product.code != null && (savedCodes.contains(product.code) || recentFoods.any { it.barcode == product.code })
+                            ProductDetailCard(
+                                product = product,
+                                isSavedToHistory = isSaved,
+                                onSaveToHistory = {
+                                    viewModel.saveProductToHistory(product)
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Aliment \"${product.getDisplayName()}\" ajouté à l'historique !")
+                                    }
+                                },
+                                onAddToMeal = {
+                                    productForMealSelect = product
+                                }
+                            )
+                        }
+                    } else if (searchError != null) {
                         item {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 16.dp),
-                                shape = RoundedCornerShape(16.dp),
+                                    .padding(vertical = 12.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                                 )
                             ) {
                                 Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(24.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                        .padding(16.dp)
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.History,
-                                        contentDescription = null,
-                                        tint = FatSecretGreen.copy(alpha = 0.6f),
-                                        modifier = Modifier.size(48.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(10.dp))
                                     Text(
-                                        text = "Aucun aliment en mémoire",
-                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Effectuez une recherche ci-dessus pour explorer les aliments Open Food Facts et les enregistrer dans votre historique.",
+                                        text = searchError ?: "Aucun résultat trouvé sur Open Food Facts",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = TextAlign.Center
@@ -409,25 +430,191 @@ fun FoodSearchScreen(
                                 }
                             }
                         }
-                    } else {
-                        items(recentFoods, key = { it.id }) { food ->
-                            SavedFoodItemCard(
-                                food = food,
-                                onAddToMeal = { localFoodForMealSelect = food },
-                                onDelete = { viewModel.deleteRecentFood(food) }
-                            )
-                        }
                     }
 
                     item {
                         Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
+            } else {
+                // When idle: Tabs between "Aliments de base (CIQUAL)" and "Historique & Mémoire"
+                TabRow(
+                    selectedTabIndex = idleTab,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = FatSecretGreen,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[idleTab]),
+                            color = FatSecretGreen
+                        )
+                    }
+                ) {
+                    Tab(
+                        selected = idleTab == 0,
+                        onClick = { idleTab = 0 },
+                        text = {
+                            Text(
+                                text = "Aliments de base (${CiqualGenericFoods.ALL_FOODS.size})",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (idleTab == 0) FontWeight.Bold else FontWeight.Normal
+                                ),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    )
+                    Tab(
+                        selected = idleTab == 1,
+                        onClick = { idleTab = 1 },
+                        text = {
+                            Text(
+                                text = "Historique (${recentFoods.size})",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = if (idleTab == 1) FontWeight.Bold else FontWeight.Normal
+                                ),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (idleTab == 0) {
+                    // CIQUAL Category selector
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        CiqualGenericFoods.CATEGORIES.forEach { category ->
+                            val isSelected = selectedCiqualCat == category
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedCiqualCat = category },
+                                label = {
+                                    Text(
+                                        text = category,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(idleCiqualFoods, key = { "ciqual_idle_${it.id}" }) { ciqual ->
+                            val isSaved = savedCodes.contains(ciqual.id) || recentFoods.any { it.name.equals(ciqual.name, ignoreCase = true) }
+                            CiqualProductCard(
+                                food = ciqual,
+                                isSaved = isSaved,
+                                onSaveToHistory = {
+                                    viewModel.saveFoodToHistory(ciqual.toFoodEntity())
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Aliment \"${ciqual.name}\" mémorisé !")
+                                    }
+                                },
+                                onAddToMeal = {
+                                    ciqualFoodForMealSelect = ciqual
+                                }
+                            )
+                        }
+
+                        item {
+                            Spacer(modifier = Modifier.height(24.dp))
+                        }
+                    }
+                } else {
+                    // Recent & Saved Foods
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (recentFoods.isEmpty()) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                    )
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.History,
+                                            contentDescription = null,
+                                            tint = FatSecretGreen.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Text(
+                                            text = "Aucun aliment en mémoire",
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Recherchez un aliment ou parcourez les aliments de base pour les ajouter à votre historique.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            items(recentFoods, key = { it.id }) { food ->
+                                SavedFoodItemCard(
+                                    food = food,
+                                    onAddToMeal = { localFoodForMealSelect = food },
+                                    onDelete = { viewModel.deleteRecentFood(food) }
+                                )
+                            }
+                        }
+
+                        item {
+                            Spacer(modifier = Modifier.height(24.dp))
+                        }
+                    }
+                }
             }
         }
     }
 
-    // Dialog: Select Meal (Petit-déjeuner, Déjeuner, Dîner, En-cas)
+    // Dialog: Select Meal for CIQUAL food
+    ciqualFoodForMealSelect?.let { ciqual ->
+        MealSelectDialog(
+            foodTitle = ciqual.name,
+            onDismiss = { ciqualFoodForMealSelect = null },
+            onSelectMeal = { mealType ->
+                ciqualFoodForMealSelect = null
+                viewModel.openPortionDialogForCiqual(ciqual, mealType)
+            }
+        )
+    }
+
+    // Dialog: Select Meal for Open Food Facts product
     productForMealSelect?.let { product ->
         MealSelectDialog(
             foodTitle = product.getDisplayName(),
@@ -439,6 +626,7 @@ fun FoodSearchScreen(
         )
     }
 
+    // Dialog: Select Meal for Saved / Local food
     localFoodForMealSelect?.let { food ->
         MealSelectDialog(
             foodTitle = food.name,
@@ -473,6 +661,169 @@ fun FoodSearchScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+fun CiqualProductCard(
+    food: CiqualFood,
+    isSaved: Boolean,
+    onSaveToHistory: () -> Unit,
+    onAddToMeal: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Header Row: Title & Calories
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = FatSecretGreen.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = "CIQUAL",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                ),
+                                color = FatSecretGreen,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = food.category,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = food.name,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "Portion usuelle : ${food.defaultServingDescription}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = FatSecretGreen.copy(alpha = 0.15f),
+                    modifier = Modifier.padding(start = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Text(
+                            text = "${food.caloriesPer100g.roundToInt()} kcal",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                            color = FatSecretGreen
+                        )
+                        Text(
+                            text = "pour 100g",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = FatSecretGreen
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Nutrients row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                MacroPill("P", "${"%.1f".format(food.proteinsPer100g)}g", AccentBlue, Modifier.weight(1f))
+                MacroPill("G", "${"%.1f".format(food.carbsPer100g)}g", CalorieOrange, Modifier.weight(1f))
+                MacroPill("L", "${"%.1f".format(food.fatPer100g)}g", CalorieRed, Modifier.weight(1f))
+                if (food.fiberPer100g > 0) {
+                    MacroPill("Fib", "${"%.1f".format(food.fiberPer100g)}g", MaterialTheme.colorScheme.onSurfaceVariant, Modifier.weight(1f))
+                }
+                if (food.saltPer100g > 0) {
+                    MacroPill("Sel", "${"%.2f".format(food.saltPer100g)}g", MaterialTheme.colorScheme.onSurfaceVariant, Modifier.weight(1f))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onSaveToHistory,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = if (isSaved) Icons.Default.Check else Icons.Default.BookmarkBorder,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (isSaved) FatSecretGreen else MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isSaved) "En mémoire" else "Mémoriser",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = if (isSaved) FatSecretGreen else MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+
+                Button(
+                    onClick = onAddToMeal,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = FatSecretGreen),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.RestaurantMenu,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Au menu",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
+        }
     }
 }
 

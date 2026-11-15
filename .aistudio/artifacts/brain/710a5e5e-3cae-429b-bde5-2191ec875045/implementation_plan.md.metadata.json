@@ -1,6 +1,0 @@
-{
-  "summary":  "Plan d'implémentation pour l'application Android de journal alimentaire épuré inspiré de FatSecret, 100% local avec Room, recherche Open Food Facts et cache hors-ligne, suivi calorique quotidien et statistiques mensuelles.",
-  "updatedAt":  "2026-10-30T10:21:25.599441439Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}

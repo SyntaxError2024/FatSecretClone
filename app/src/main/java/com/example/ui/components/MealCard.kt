@@ -129,8 +129,9 @@ fun MealCard(
                         text = mealType.titleFr,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        modifier = Modifier.weight(1f, fill = false)
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
@@ -140,7 +141,9 @@ fun MealCard(
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontWeight = if (totalKcal > 0) FontWeight.Bold else FontWeight.Normal
                         ),
-                        color = if (totalKcal > 0) FatSecretGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (totalKcal > 0) FatSecretGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
 

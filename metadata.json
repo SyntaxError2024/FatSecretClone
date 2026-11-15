@@ -1,6 +1,0 @@
-{
-  "name": "Journal Calorie",
-  "description": "Journal alimentaire épuré avec stockage 100% local, recherche Open Food Facts, 4 repas quotidiens et statistiques mensuelles.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

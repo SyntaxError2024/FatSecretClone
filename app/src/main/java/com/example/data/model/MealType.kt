@@ -1,7 +1,7 @@
 package com.example.data.model
 
 enum class MealType(val titleFr: String) {
-    BREAKFAST("Petit-déjeuner"),
+    BREAKFAST("Petit\u2011déjeuner"),
     LUNCH("Déjeuner"),
     DINNER("Dîner"),
     SNACK("Collations")
